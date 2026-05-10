@@ -1,0 +1,4 @@
+[
+  "api/test_api.py::test_health_check",
+  "api/test_api.py::test_read_root"
+]
