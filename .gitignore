@@ -1,5 +1,7 @@
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -24,6 +26,16 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+pip-wheel-metadata/
+__pypackages__/
+celerybeat-schedule
+.instance
+.webassets-cache
 
 # Virtual environments
 .env/
@@ -34,28 +46,45 @@ ENV/
 env.bak/
 venv.bak/
 
-# Project specific
-saved_models/
-*.joblib
-
-# Node & Next.js
+# Node.js
 node_modules/
-.pnp*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-coverage/
-.next/
-out/
+dist/
 build/
-.DS_Store
-*.pem
+.npm
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-.vercel
-*.tsbuildinfo
+
+# Next.js
+.next/
+out/
 next-env.d.ts
+.expo/
+
+# ML Models
+txguard-api/ml/saved_models/
+
+# Generated synthetic data
+txguard-api/data/synthetic_transactions.csv
+
+# Logs, IDEs, OS
+.DS_Store
+*.pem
+.vercel
+.idea/
+.vscode/
+*.log
+
+# Terraform
+infra/.terraform/
+infra/.terraform.lock.hcl
+infra/terraform.tfvars
+!infra/terraform.tfvars.example
+
+# Docker
+.dockerignore
+
+# ChromaDB (runtime vector store)
+txguard-api/data/chroma_db/

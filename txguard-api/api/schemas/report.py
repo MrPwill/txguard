@@ -1,17 +1,17 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Any
 from datetime import datetime
 
 class InvestigationReportBase(BaseModel):
     alert_id: str
     transaction_id: str
     behavioral_analysis: str
-    typology_assessment: List[Dict[str, Any]]
+    typology_assessment: Any
     regulatory_assessment: str
     recommended_action: str
     confidence_score: float
-    evidence_citations: List[Dict[str, str]]
-    agent_run_metadata: List[Dict[str, Any]]
+    evidence_citations: Any
+    agent_run_metadata: Any
 
 class InvestigationReportCreate(InvestigationReportBase):
     pass

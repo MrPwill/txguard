@@ -7,6 +7,18 @@ from api.models.report import InvestigationReport
 from api.models.audit import AuditLog
 import uuid
 import json
+from api.realtime import publish_alert_event
+
+
+def _extract_report_payload(raw_output: str) -> dict:
+    try:
+        start = raw_output.find("{")
+        end = raw_output.rfind("}")
+        if start >= 0 and end > start:
+            return json.loads(raw_output[start : end + 1])
+    except Exception:
+        pass
+    return {}
 
 celery_app = Celery(
     "txguard_workers",
@@ -43,6 +55,7 @@ def run_investigation(alert_id: str):
         # Run the crew
         result = crew.kickoff()
         output_text = str(result)
+        parsed = _extract_report_payload(output_text)
         
         # Determine the recommended action from the result text
         action = "MONITOR"
@@ -55,13 +68,13 @@ def run_investigation(alert_id: str):
             id=str(uuid.uuid4()),
             alert_id=alert.id,
             transaction_id=alert.transaction_id,
-            behavioral_analysis="Extracted behavioral analysis summary.",
-            typology_assessment={"summary": "Extracted typology assessment."},
-            regulatory_assessment="Extracted regulatory assessment.",
-            recommended_action=action,
-            confidence_score=0.85,
-            evidence_citations={"output": output_text},
-            agent_run_metadata={"crew_output": output_text}
+            behavioral_analysis=parsed.get("decision_rationale", "Investigation completed."),
+            typology_assessment={"key_risk_factors": parsed.get("key_risk_factors", [])},
+            regulatory_assessment=parsed.get("executive_summary", "No regulatory summary provided."),
+            recommended_action=parsed.get("recommended_action", action),
+            confidence_score=float(parsed.get("confidence_score", 0.75)),
+            evidence_citations=parsed.get("evidence_citations", []),
+            agent_run_metadata={"crew_output": output_text, "next_actions": parsed.get("next_actions", [])},
         )
         db.add(report)
         
@@ -84,9 +97,25 @@ def run_investigation(alert_id: str):
             payload=payload
         )
         db.add(audit)
+        db.add(
+            AuditLog(
+                transaction_id=alert.transaction_id,
+                action_type="REPORT_WRITTEN",
+                actor="system",
+                payload={"alert_id": alert.id, "report_id": report.id},
+            )
+        )
         db.commit()
         
-        # Broadcast completion to WebSocket via internal publish mechanism if configured
+        publish_alert_event(
+            {
+                "event_type": "investigation_complete",
+                "alert_id": alert.id,
+                "transaction_id": alert.transaction_id,
+                "investigation_status": "COMPLETE",
+                "recommended_action": report.recommended_action,
+            }
+        )
         
         return {"status": "success", "alert_id": alert_id}
     except Exception as e:

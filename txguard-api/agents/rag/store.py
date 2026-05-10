@@ -6,8 +6,13 @@ CHROMA_PATH = os.getenv("CHROMA_PATH", "./data/chroma_db")
 
 # Initialize ChromaDB client
 client = chromadb.PersistentClient(path=CHROMA_PATH)
+_initialized = False
 
 def init_db():
+    global _initialized
+    if _initialized:
+        return
+
     fraud_typologies = client.get_or_create_collection("fraud_typologies")
     aml_regulations = client.get_or_create_collection("aml_regulations")
     past_investigations = client.get_or_create_collection("past_investigations")
@@ -52,12 +57,11 @@ def init_db():
             ],
             ids=["inv_1"]
         )
-
-# Initialize on import
-init_db()
+    _initialized = True
 
 def query_collection(collection_name: str, query: str, n_results: int = 3):
     try:
+        init_db()
         collection = client.get_collection(collection_name)
         results = collection.query(query_texts=[query], n_results=n_results)
         # Flatten the list of documents

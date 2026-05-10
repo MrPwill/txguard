@@ -1,11 +1,12 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
+from redis.asyncio import Redis
 from ..database import get_db
 from ..models.alert import Alert
 from ..schemas.alert import Alert as AlertSchema
-import asyncio
-import json
+from ..config import settings
+from ..realtime import ALERTS_CHANNEL
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -42,9 +43,17 @@ async def get_alerts(
 @router.websocket("/live")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    redis_client = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe(ALERTS_CHANNEL)
     try:
         while True:
-            # Keep connection alive
-            await websocket.receive_text()
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if message and message.get("data"):
+                await websocket.send_text(message["data"])
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+    finally:
+        await pubsub.unsubscribe(ALERTS_CHANNEL)
+        await pubsub.close()
+        await redis_client.close()

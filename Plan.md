@@ -104,7 +104,7 @@ txguard-frontend/
 | ML — Optional | PyTorch autoencoder | Stretch goal |
 | Rule Engine | Custom Python | Velocity, geo, blacklist, round-amount, off-hours |
 | Agent Framework | CrewAI | 4-agent sequential investigation crew |
-| LLM Provider | OpenRouter (Claude / GPT-4o) | Via OpenAI-compatible API |
+| LLM Provider | OpenRouter (deepseek/deepseek-v4-flash) | Via OpenAI-compatible API |
 | RAG | ChromaDB + LangChain | 4 collections — see AGENTS.md |
 | Explainability | SHAP | Feature attribution per scoring decision |
 | Database | PostgreSQL | Primary data store |

@@ -1,0 +1,69 @@
+﻿version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: txguard-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: txguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: txguard-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  txguard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: txguard
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/txguard
+      - REDIS_URL=redis://redis:6379/0
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - SECRET_KEY=txguard-dev-secret
+      - CHROMA_PATH=./data/chroma_db
+      - MODEL_DIR=./ml/saved_models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./txguard-api/ml/saved_models:/app/txguard-api/ml/saved_models
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: txguard-seed
+    command: ["python", "/app/seed.py"]
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/txguard
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  postgres_data:

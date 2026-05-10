@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .routers import transactions, alerts, reports
+from .routers import transactions, alerts, reports, model
 from .database import engine, Base
 
 # Create tables (for production, use migrations like Alembic)
@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(transactions.router, prefix=settings.API_V1_STR)
 app.include_router(alerts.router, prefix=settings.API_V1_STR)
 app.include_router(reports.router, prefix=settings.API_V1_STR)
+app.include_router(model.router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 async def root():

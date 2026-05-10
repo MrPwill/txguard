@@ -1,19 +1,38 @@
 import asyncio
 import json
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from typing import List, Optional
+import numpy as np
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.transaction import Transaction
 from ..models.alert import Alert
 from ..models.audit import AuditLog
+from ..models.report import InvestigationReport
 from ..schemas.transaction import TransactionCreate, Transaction as TransactionSchema, ScoringResponse
+from ..schemas.report import InvestigationReport as InvestigationReportSchema
 from ..dependencies import get_scorer, get_explainer
+from ..realtime import publish_alert_event
 from datetime import datetime
 from workers.celery_app import run_investigation
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+
+@router.get("/", response_model=List[TransactionSchema])
+async def list_transactions(
+    tier: Optional[str] = None,
+    account_id: Optional[str] = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Transaction)
+    if tier:
+        query = query.filter(Transaction.risk_tier == tier)
+    if account_id:
+        query = query.filter(Transaction.account_id == account_id)
+    return query.order_by(Transaction.timestamp.desc()).limit(limit).all()
 
 @router.post("/ingest", response_model=List[TransactionSchema])
 async def ingest_transactions(txns: List[TransactionCreate], db: Session = Depends(get_db)):
@@ -37,11 +56,19 @@ async def ingest_transactions(txns: List[TransactionCreate], db: Session = Depen
         db.refresh(txn)
     return db_txns
 
-@router.post("/score", response_model=ScoringResponse)
-async def score_transaction_sync(txn_id: str, db: Session = Depends(get_db), scorer = Depends(get_scorer)):
+@router.post("/score")
+async def score_transaction_sync(
+    txn_id: str,
+    stream: bool = False,
+    db: Session = Depends(get_db),
+    scorer=Depends(get_scorer),
+):
     """
     Synchronous scoring for testing. The PRD also asks for SSE streaming version.
     """
+    if stream:
+        return await score_transaction_stream(txn_id, db, scorer)
+
     db_txn = db.query(Transaction).filter(Transaction.id == txn_id).first()
     if not db_txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -90,6 +117,7 @@ async def score_transaction_sync(txn_id: str, db: Session = Depends(get_db), sco
             reason_codes=result['reason_codes']
         )
         db.add(alert)
+        db.flush()
         db.add(AuditLog(
             transaction_id=db_txn.id,
             action_type="ALERT_CREATED",
@@ -102,6 +130,16 @@ async def score_transaction_sync(txn_id: str, db: Session = Depends(get_db), sco
             actor="system",
             payload={"alert_id": alert.id, "tier": db_txn.risk_tier}
         ))
+        publish_alert_event(
+            {
+                "event_type": "alert_created",
+                "alert_id": alert.id,
+                "transaction_id": db_txn.id,
+                "risk_tier": db_txn.risk_tier,
+                "investigation_status": "PENDING",
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        )
         run_investigation.delay(alert.id)
         
     db.commit()
@@ -149,6 +187,17 @@ async def explain_transaction(id: str, db: Session = Depends(get_db), scorer = D
         
     explanation = explainer.explain_instance(X_txn)
     return explanation
+
+@router.get("/{id}/report", response_model=InvestigationReportSchema)
+async def get_transaction_report(id: str, db: Session = Depends(get_db)):
+    report = (
+        db.query(InvestigationReport)
+        .filter(InvestigationReport.transaction_id == id)
+        .first()
+    )
+    if not report:
+        raise HTTPException(status_code=404, detail="Investigation report not found")
+    return report
 
 @router.get("/{id}/score/stream")
 async def score_transaction_stream(id: str, db: Session = Depends(get_db), scorer = Depends(get_scorer)):
@@ -206,18 +255,39 @@ async def score_transaction_stream(id: str, db: Session = Depends(get_db), score
         if final_score > 60: tier = "HIGH"
         if final_score > 80: tier = "CRITICAL"
         
+        reason_codes = rule_results['rule_triggers'].copy()
+        if ml_anomaly_score > 0.6:
+            reason_codes.append(f"High ML Anomaly Score ({ml_anomaly_score:.2f})")
+        
         result = {
             "risk_score": round(final_score, 2),
             "risk_tier": tier,
             "rule_triggers": rule_results['rule_triggers'],
             "ml_anomaly_score": round(ml_anomaly_score, 4),
+            "reason_codes": reason_codes[:3],
             "scored_at": datetime.utcnow().isoformat()
         }
         
-        # Persist results
+# Persist results
         db_txn.risk_score = result['risk_score']
         db_txn.risk_tier = result['risk_tier']
+        db_txn.reason_codes = result['reason_codes']
         db_txn.status = "SCORED"
+        
+        # Audit: rule evaluation
+        db.add(AuditLog(
+            transaction_id=db_txn.id,
+            action_type="RULE_EVALUATED",
+            actor="system",
+            payload={"rule_triggers": result['rule_triggers']}
+        ))
+        # Audit: ML scoring
+        db.add(AuditLog(
+            transaction_id=db_txn.id,
+            action_type="ML_SCORED",
+            actor="system",
+            payload={"ml_anomaly_score": ml_anomaly_score}
+        ))
         
         if tier in ["HIGH", "CRITICAL"]:
             db_txn.status = "FLAGGED"
@@ -226,9 +296,35 @@ async def score_transaction_stream(id: str, db: Session = Depends(get_db), score
                 risk_tier=tier,
                 rule_triggers=rule_results['rule_triggers'],
                 ml_anomaly_score=ml_anomaly_score,
-                reason_codes=rule_results['rule_triggers'] # simplified
+                reason_codes=result['reason_codes']
             )
             db.add(alert)
+            db.flush()
+            # Audit: alert creation
+            db.add(AuditLog(
+                transaction_id=db_txn.id,
+                action_type="ALERT_CREATED",
+                actor="system",
+                payload={"alert_id": alert.id, "tier": tier}
+            ))
+            # Audit: investigation dispatched
+            db.add(AuditLog(
+                transaction_id=db_txn.id,
+                action_type="INVESTIGATION_DISPATCHED",
+                actor="system",
+                payload={"alert_id": alert.id, "tier": tier}
+            ))
+            publish_alert_event(
+                {
+                    "event_type": "alert_created",
+                    "alert_id": alert.id,
+                    "transaction_id": db_txn.id,
+                    "risk_tier": tier,
+                    "investigation_status": "PENDING",
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            )
+            run_investigation.delay(alert.id)
             
         db.commit()
         

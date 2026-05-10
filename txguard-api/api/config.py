@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # Secrets
     SECRET_KEY: str = "supersecretkey"
     
-    model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
+    # ChromaDB
+    CHROMA_PATH: str = "./data/chroma_db"
+    
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()
