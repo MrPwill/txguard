@@ -88,3 +88,15 @@ infra/terraform.tfvars
 
 # ChromaDB (runtime vector store)
 txguard-api/data/chroma_db/
+
+# Project documentation (generated/procedural)
+demo.pyc
+FRONTEND.md
+Plan.md
+PRD.md
+Walkthrough.md
+AGENTS.md
+
+# Frontend docs
+txguard-frontend/CLAUDE.md
+txguard-frontend/AGENTS.md
