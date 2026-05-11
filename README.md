@@ -120,7 +120,7 @@ Transaction Analyst --> Fraud Investigator --> Compliance Specialist --> Risk Of
 ### 1. Clone & Configure
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/txguard.git
+git clone https://github.com/MrPwill/txguard.git
 cd txguard
 cp infra/terraform.tfvars.example infra/terraform.tfvars
 ```
@@ -305,15 +305,32 @@ The Terraform configuration creates:
 
 ## Running the Demo
 
+Once the application is running via Docker Compose, you can test the system:
+
 ```bash
-# Full end-to-end demo (no OpenRouter key needed with --skip-agents)
-python demo.py --load-data --skip-agents
+# Ingest a test transaction
+curl -X POST http://localhost:8000/api/v1/transactions/ingest \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "account_id": "ACC-TEST",
+    "amount": 20000.00,
+    "currency": "USD",
+    "merchant_name": "Crypto Exchange",
+    "merchant_category_code": "6012",
+    "timestamp": "2026-05-11T02:00:00Z",
+    "location_country": "NG",
+    "location_city": "Lagos",
+    "channel": "online"
+  }]'
 
-# Demo with a CRITICAL transaction (maximum alerts)
-python demo.py --critical --skip-agents
+# Score the transaction to trigger a HIGH/CRITICAL alert
+curl -X POST "http://localhost:8000/api/v1/transactions/score?txn_id=ACC-TEST"
 
-# With live CrewAI agents (requires OPENROUTER_API_KEY)
-python demo.py --load-data
+# Check for alerts (should show HIGH or CRITICAL)
+curl "http://localhost:8000/api/v1/alerts"
+
+# View the investigation report (after Celery completes)
+curl "http://localhost:8000/api/v1/transactions/ACC-TEST/report"
 ```
 
 ---
