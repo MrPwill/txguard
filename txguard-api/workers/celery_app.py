@@ -12,12 +12,18 @@ from api.realtime import publish_alert_event
 
 def _extract_report_payload(raw_output: str) -> dict:
     try:
-        start = raw_output.find("{")
-        end = raw_output.rfind("}")
-        if start >= 0 and end > start:
-            return json.loads(raw_output[start : end + 1])
+        return json.loads(raw_output)
     except Exception:
-        pass
+        decoder = json.JSONDecoder()
+        for idx, char in enumerate(raw_output):
+            if char != "{":
+                continue
+            try:
+                parsed, _ = decoder.raw_decode(raw_output[idx:])
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                continue
     return {}
 
 celery_app = Celery(
@@ -120,6 +126,26 @@ def run_investigation(alert_id: str):
         return {"status": "success", "alert_id": alert_id}
     except Exception as e:
         db.rollback()
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        if alert:
+            alert.investigation_status = "FAILED"
+            db.add(
+                AuditLog(
+                    transaction_id=alert.transaction_id,
+                    action_type="INVESTIGATION_FAILED",
+                    actor="system",
+                    payload={"alert_id": alert.id, "error": str(e)},
+                )
+            )
+            db.commit()
+            publish_alert_event(
+                {
+                    "event_type": "investigation_failed",
+                    "alert_id": alert.id,
+                    "transaction_id": alert.transaction_id,
+                    "investigation_status": "FAILED",
+                }
+            )
         return {"status": "error", "message": str(e)}
     finally:
         db.close()

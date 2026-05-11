@@ -1,4 +1,3 @@
-﻿version: "3.8"
 
 services:
   postgres:
@@ -56,7 +55,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: txguard-seed
-    command: ["python", "/app/seed.py"]
+    command: ["/app/txguard-api/.venv/bin/python", "/app/seed.py"]
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/txguard
       - REDIS_URL=redis://redis:6379/0

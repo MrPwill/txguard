@@ -5,13 +5,15 @@ from .tools.transaction_tools import get_transaction_detail, get_account_history
 from .tools.rag_tools import search_fraud_typologies, search_aml_regulations, get_similar_past_investigations
 from .tools.compliance_tools import check_merchant_watchlist, get_counterparty_risk, compute_structuring_signals, check_ctr_threshold, check_kyc_status, search_sanctions_list, get_jurisdiction_rules, format_investigation_report
 
-llm = ChatOpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-    model=os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash")
-)
+def _get_llm() -> ChatOpenAI:
+    return ChatOpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        model=os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash"),
+    )
 
 def create_investigation_crew(alert_id: str, transaction_id: str):
+    llm = _get_llm()
     transaction_analyst = Agent(
         role="Transaction Analyst",
         goal="Build a complete behavioral profile for the flagged account and transaction.",

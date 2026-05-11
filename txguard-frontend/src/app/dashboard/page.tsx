@@ -18,9 +18,14 @@ function formatDelta(today: number, yesterday: number): string {
 }
 
 export default function DashboardOverview() {
-  useAlertWebSocket(
-    process.env.NEXT_PUBLIC_WS_URL ? `${process.env.NEXT_PUBLIC_WS_URL}/alerts/live` : undefined,
-  );
+  const wsBase = process.env.NEXT_PUBLIC_WS_URL;
+  const wsUrl = wsBase
+    ? wsBase.endsWith("/alerts/live")
+      ? wsBase
+      : `${wsBase}/alerts/live`
+    : undefined;
+
+  useAlertWebSocket(wsUrl);
 
   const wsAlerts = useAlertStore((s) => s.alerts);
   const { data: metrics, isLoading } = useDashboardMetrics();

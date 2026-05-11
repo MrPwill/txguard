@@ -2,6 +2,7 @@ import sys
 import time
 import random
 from datetime import datetime, timedelta, timezone
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 sys.path.insert(0, "/app/txguard-api")
@@ -33,7 +34,7 @@ def wait_for_db(max_attempts=30, sleep_seconds=2):
     for attempt in range(1, max_attempts + 1):
         try:
             db = SessionLocal()
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
             db.close()
             return
         except Exception:

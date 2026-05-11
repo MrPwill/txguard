@@ -14,7 +14,9 @@ export default function InvestigationReportPage({ params }: { params: Promise<{ 
   if (isLoading) return <div className="text-text-faint font-mono p-6">Loading investigation report...</div>;
   if (!report) return <div className="text-text-faint font-mono p-6">Report not found.</div>;
 
-  const isPending = report.investigation_status === 'IN_PROGRESS';
+  const isQueued = report.investigation_status === 'PENDING';
+  const isInProgress = report.investigation_status === 'IN_PROGRESS';
+  const isFailed = report.investigation_status === 'FAILED';
   const metadata = report.agent_run_metadata || {};
 
   return (
@@ -31,10 +33,19 @@ export default function InvestigationReportPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      {isPending ? (
+      {isQueued ? (
+        <div className="bg-amber/10 border border-amber/30 text-amber p-6 rounded-lg flex flex-col items-center justify-center gap-3">
+          <div className="font-mono text-sm">Investigation queued. Waiting for worker pickup.</div>
+          <div className="font-mono text-xs opacity-80">Polling status every 3 seconds.</div>
+        </div>
+      ) : isInProgress ? (
         <div className="bg-cyan/10 border border-cyan/30 text-cyan p-6 rounded-lg flex flex-col items-center justify-center gap-4">
           <div className="w-8 h-8 border-4 border-cyan border-t-transparent rounded-full animate-spin"></div>
           <div className="font-mono text-sm">Autonomous investigation in progress... Polling agents.</div>
+        </div>
+      ) : isFailed ? (
+        <div className="bg-risk-critical/10 border border-risk-critical/30 text-risk-critical p-6 rounded-lg">
+          <div className="font-mono text-sm">Investigation failed. Check audit trail and retry dispatch.</div>
         </div>
       ) : (
         <>

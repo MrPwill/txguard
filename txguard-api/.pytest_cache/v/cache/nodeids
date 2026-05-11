@@ -1,4 +1,5 @@
 [
   "api/test_api.py::test_health_check",
-  "api/test_api.py::test_read_root"
+  "api/test_api.py::test_read_root",
+  "ml/test_scorer.py::test"
 ]

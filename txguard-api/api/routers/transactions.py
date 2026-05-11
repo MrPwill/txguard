@@ -330,7 +330,8 @@ async def score_transaction_stream(id: str, db: Session = Depends(get_db), score
         
         yield {"event": "final", "data": json.dumps(result)}
 
-    return StreamingResponse(
-        (f"event: {e['event']}\ndata: {e['data']}\n\n" for e in event_generator()),
-        media_type="text/event-stream"
-    )
+    async def sse_stream():
+        async for e in event_generator():
+            yield f"event: {e['event']}\ndata: {e['data']}\n\n"
+
+    return StreamingResponse(sse_stream(), media_type="text/event-stream")
