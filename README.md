@@ -395,6 +395,17 @@ txguard/
 
 ---
 
+## Coming Soon
+
+- User authentication and role-based access control
+- Enhanced fraud detection rules
+- Automated model retraining on drift detection
+- Compliance report export (CSV/PDF)
+- Full-text transaction search
+- Additional fraud pattern libraries
+
+---
+
 ## License
 
 MIT

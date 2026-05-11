@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useAlerts } from "@/lib/api/alerts";
 import RiskBadge from "@/components/shared/RiskBadge";
 import Link from "next/link";
-import { ArrowRight, Search, ShieldAlert } from "lucide-react";
+import { ArrowRight, ShieldAlert } from "lucide-react";
 
 export default function AlertsQueuePage() {
-  const { data: alerts, isLoading } = useAlerts();
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const { data: alerts, isLoading } = useAlerts(statusFilter);
 
   return (
     <div className="space-y-6 flex flex-col h-full">
@@ -18,11 +20,12 @@ export default function AlertsQueuePage() {
       </div>
 
       <div className="flex gap-4 items-center shrink-0 border-b border-border pb-4">
-        {['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETE'].map(status => (
+        {['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETE', 'FAILED'].map(status => (
           <button 
             key={status}
+            onClick={() => setStatusFilter(status)}
             className={`px-4 py-2 text-sm font-mono transition-colors border-b-2 ${
-              status === 'ALL' 
+              status === statusFilter
                 ? 'border-cyan text-cyan' 
                 : 'border-transparent text-text-dim hover:text-text hover:border-border'
             }`}
